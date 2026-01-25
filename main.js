@@ -5,6 +5,8 @@ const {join}=require('path');
 const {once}=require('events');
 const prompt=require('prompt-sync')({sigint:true});
 const {Readable:{fromWeb},promises:{pipeline}}=require('stream');
+var filenameCount={};//counts files of same name
+var renames=[];//stores all the names to add (1) to;
 // const {exiftool:{write,end}}=require('exiftool-vendored');
 //input
 const service=process.argv[2]??prompt('Service (onlyfans/fansly/etc.)? ');
@@ -13,8 +15,18 @@ function sleep5(){
 	console.log(styleText('red',`Sleeping 5 seconds and trying again...`));
 	return new Promise(resolve=>setTimeout(resolve,5000));
 }
-async function download(weburl,filename,datetime){
-	const fullpath=join(creator,filename);
+async function download(weburl,filename,extension,datetime){
+	let fullpath;
+	switch(filenameCount[filename]){
+		case undefined:
+			filenameCount[filename]=1;
+			fullpath=join(creator,filename+extension);
+			break;
+		case 1:
+			renames.push([filename,extension]);
+		default:
+			fullpath=join(creator,`${filename}(${++filenameCount[filename]})${extension}`);
+	}
 	const tempfile=fullpath+'.part';
 	const stream=createWriteStream(tempfile);
 	for(;;)
@@ -26,6 +38,7 @@ async function download(weburl,filename,datetime){
 		console.log(styleText('red',`Could not download ${weburl}`));
 		await sleep5();
 	}
+	//TODO: fix same title two posts
 	await once(stream,'finish');
 	await rename(tempfile,fullpath);
 	console.log(styleText('green',`Finished downloading ${filename}.`));
@@ -73,22 +86,22 @@ async function download(weburl,filename,datetime){
 				title=id;
 			else
 				title=title.replaceAll('/','');//ignore / for proper filename
-			let count=0;
 			if(path!=undefined)
 				downloadBatch.push(
 					download(
 						`https://n2.coomer.st/data${path}`,
-						`${title}${attachments.length===0?'':`(${++count})`}${path.substring(path.indexOf('.'))}`,//extension with title as filename
+						title,
+						path.substring(path.lastIndexOf('.')),
 						published
 					)
 				);
 			for(const {path} of attachments){
-				console.log(styleText('cyan',`Reading extra image ${count} of post ${title}`));
-				count++;
+				console.log(styleText('cyan',`Reading extra image of post ${title}`));
 				downloadBatch.push(
 					download(
 						`https://n2.coomer.st/data${path}`,
-						`${title}${count===1?'':`(${count})`}${path.substring(path.indexOf('.'))}`,//extension with title as filename
+						title,
+						path.substring(path.lastIndexOf('.')),
 						published
 					)
 				);
@@ -97,5 +110,12 @@ async function download(weburl,filename,datetime){
 		console.log(styleText('blue',`Downloading from posts ${offset} to ${offset+50}.`));
 		await Promise.all(downloadBatch);
 		console.log(styleText('blue',`Finished posts ${offset} to ${offset+=50}.`));
+	}
+	console.log(styleText('purple','Renaming similar files.'))
+	for(const [filename,extension] of renames){//rename to add (1)
+		rename(
+			join(creator,filename+extension),
+			join(creator,filename+'(1)'+extension)
+		);
 	}
 })();
