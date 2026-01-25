@@ -1,0 +1,16 @@
+{
+  "name": "coomer",
+  "version": "1.0.0",
+  "description": "Bulk downloads from coomer.su",
+  "license": "AGPL-3.0-or-later",
+  "author": "",
+  "type": "commonjs",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "exiftool-vendored": "^35.2.0",
+    "prompt-sync": "^4.2.0"
+  }
+}
