@@ -11,9 +11,9 @@ var renames=[];//stores all the names to add (1) to;
 //input
 const service=process.argv[2]??prompt('Service (onlyfans/fansly/etc.)? ');
 const creator=process.argv[3]??prompt('Creator? ');
-function sleep5(){
-	console.log(styleText('red',`Sleeping 5 seconds and trying again...`));
-	return new Promise(resolve=>setTimeout(resolve,5000));
+function sleep10(){
+	console.log(styleText('red',`Trying again after 10 seconds...`));
+	return new Promise(resolve=>setTimeout(resolve,10000));
 }
 async function download(weburl,filename,extension,datetime){
 	let fullpath;
@@ -29,19 +29,27 @@ async function download(weburl,filename,extension,datetime){
 	}
 	const tempfile=fullpath+'.part';
 	const stream=createWriteStream(tempfile);
+	stream.on('error',()=>{});//ignore low level process.exit(1) errors
 	for(;;)
-	try{
-		fromWeb((await fetch(weburl)).body).pipe(stream);
-		break;
-	}catch(err){
-		console.log(styleText('red',err));
-		console.log(styleText('red',`Could not download ${weburl}`));
-		await sleep5();
-	}
-	//TODO: fix same title two posts
-	await once(stream,'finish');
-	await rename(tempfile,fullpath);
-	console.log(styleText('green',`Finished downloading ${filename}.`));
+		try{
+			let response=await fetch(weburl);
+			if(!response.ok){
+				await response.body.cancel();
+				throw new Error(`HTTP response status ${response.status}.`);
+			}
+			const nodeStream=fromWeb(await response.body);
+			nodeStream.on('error',()=>{});//ignore low level process.exit(1) errors
+			nodeStream.pipe(stream);
+			await once(stream,'finish');
+			await rename(tempfile,fullpath);
+			console.log(styleText('green',`Finished downloading ${filename}.`));
+			break;
+		}catch(err){
+			console.error(err);
+			console.log(styleText('red',`Could not download ${weburl} from post titled ${filename}`));
+			await sleep10();
+		}
+	//NOTE: lines commented out to not update metadata using exiftool
 	// const tPosition=datetime.substring('T');
 	// await write(fullpath,{
 	// 	DateCreated:datetime.substring(0,tPosition).replaceAll('-',':'),
@@ -72,24 +80,24 @@ async function download(weburl,filename,extension,datetime){
 					)
 				)
 				if(!response.ok)
-					throw new Error(`HTTP response status {response.status}.`);
+					throw new Error(`HTTP response status ${response.status}.`);
 				posts=await response.json()
 				break;
 			}catch(err){
-				console.log(styleText('red',err));
+				console.error(err);
 				console.log(styleText('red',`Could not get API response.`));
-				await sleep5();
+				await sleep10();
 			}
 		if(posts.error!==undefined)break;
 		for(let {id,title,published,file:{path},attachments} of posts){
 			if(title.trim().length===0)
 				title=id;
 			else
-				title=title.replaceAll('/','');//ignore / for proper filename
+				title=title.replaceAll('/','');//ignore '/' to get a proper filename
 			if(path!=undefined)
 				downloadBatch.push(
 					download(
-						`https://n2.coomer.st/data${path}`,
+						'https://n1.coomer.st/data/'+path,
 						title,
 						path.substring(path.lastIndexOf('.')),
 						published
@@ -99,7 +107,7 @@ async function download(weburl,filename,extension,datetime){
 				console.log(styleText('cyan',`Reading extra image of post ${title}`));
 				downloadBatch.push(
 					download(
-						`https://n2.coomer.st/data${path}`,
+						'https://n1.coomer.st/data/'+path,
 						title,
 						path.substring(path.lastIndexOf('.')),
 						published
@@ -108,7 +116,7 @@ async function download(weburl,filename,extension,datetime){
 			}
 		}
 		console.log(styleText('blue',`Downloading from posts ${offset} to ${offset+50}.`));
-		await Promise.all(downloadBatch);
+		await Promise.allSettled(downloadBatch);
 		console.log(styleText('blue',`Finished posts ${offset} to ${offset+=50}.`));
 	}
 	console.log(styleText('purple','Renaming similar files.'))
