@@ -16,3 +16,7 @@ npm install
 node main.js [onlyfans/fansly] [creator name]
 ```
 **Note:** This code has no relative path dependencies. Node can be called from anywhere with the proper path to ```main.js```. The content of the script however will be stored in the current working directory.
+
+## Disclaimer
+
+ The site and api this project targets is a known host for exclusive pay-per-view content. This project takes no liability for blah blah blah blah....
