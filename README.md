@@ -1,5 +1,5 @@
 # Coomer-downloader
-![](https://github.com/Literotica-downloader/Coomer-downloader/blob/main/klog.png?raw=true)
+![](https://github.com/Literotica-downloader/Coomer-downloader/blob/main/klogo.png?raw=true)
 Downloads all content from coomer.st (formerly coomer.su) from any specific creator.
 
 ## Installation
