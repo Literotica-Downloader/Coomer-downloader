@@ -17,38 +17,42 @@ function sleep10(){
 }
 async function download(weburl,filename,extension,datetime){
 	let fullpath;
-	switch(filenameCount[filename]){
+	const fullname=filename+extension;
+	switch(filenameCount[fullname]){
 		case undefined:
-			filenameCount[filename]=1;
-			fullpath=join(creator,filename+extension);
+			filenameCount[fullname]=1;
+			fullpath=join(creator,fullname);
 			break;
 		case 1:
 			renames.push([filename,extension]);
 		default:
-			fullpath=join(creator,`${filename}(${++filenameCount[filename]})${extension}`);
+			fullpath=join(creator,`${filename}(${++filenameCount[fullname]})${extension}`);
 	}
 	const tempfile=fullpath+'.part';
-	const stream=createWriteStream(tempfile);
-	stream.on('error',()=>{});//ignore low level process.exit(1) errors
-	for(;;)
+	for(;;){
+		const stream=createWriteStream(tempfile);
 		try{
 			let response=await fetch(weburl);
 			if(!response.ok){
 				await response.body.cancel();
 				throw new Error(`HTTP response status ${response.status}.`);
 			}
-			const nodeStream=fromWeb(await response.body);
-			nodeStream.on('error',()=>{});//ignore low level process.exit(1) errors
-			nodeStream.pipe(stream);
-			await once(stream,'finish');
+			await pipeline(
+				fromWeb(response.body),
+				stream
+			);
+			await stream.close();
 			await rename(tempfile,fullpath);
 			console.log(styleText('green',`Finished downloading ${filename}.`));
 			break;
 		}catch(err){
 			console.error(err);
+			stream?.destroy();
+			// nodeStream.destroy();
 			console.log(styleText('red',`Could not download ${weburl} from post titled ${filename}`));
 			await sleep10();
 		}
+	}
 	//NOTE: lines commented out to not update metadata using exiftool
 	// const tPosition=datetime.substring('T');
 	// await write(fullpath,{
@@ -79,8 +83,6 @@ async function download(weburl,filename,extension,datetime){
 						}
 					)
 				)
-				if(!response.ok)
-					throw new Error(`HTTP response status ${response.status}.`);
 				posts=await response.json()
 				break;
 			}catch(err){
@@ -116,11 +118,12 @@ async function download(weburl,filename,extension,datetime){
 			}
 		}
 		console.log(styleText('blue',`Downloading from posts ${offset} to ${offset+50}.`));
-		await Promise.allSettled(downloadBatch);
+		await Promise.all(downloadBatch);
 		console.log(styleText('blue',`Finished posts ${offset} to ${offset+=50}.`));
 	}
-	console.log(styleText('purple','Renaming similar files.'))
+	console.log(styleText('magenta','Renaming similar files.'))
 	for(const [filename,extension] of renames){//rename to add (1)
+		console.log(filename,'->');
 		rename(
 			join(creator,filename+extension),
 			join(creator,filename+'(1)'+extension)
